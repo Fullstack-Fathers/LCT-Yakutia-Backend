@@ -44,6 +44,17 @@ app.get('/social_networks/auth', async (req, res) => {
 
       const accessToken = response.data.access_token;
 
+      // получаем данные о пользователя по api
+      const vkUserUrl = 'https://api.vk.com/method/users.get';
+      const userResponse = await axios.post(vkUserUrl, {
+        extended: 1,
+        access_token: accessToken,
+        v: '5.199',
+      });
+
+      const userData = userResponse.data;
+
+      // получаем данные о подписках пользователя
       const vkGroupsUrl = 'https://api.vk.com/method/groups.get';
       const groupsResponse = await axios.post(vkGroupsUrl, {
         extended: 1,
@@ -54,8 +65,13 @@ app.get('/social_networks/auth', async (req, res) => {
       const groupsData = groupsResponse.data;
       const activitiesArray = groupsData.response.items.map(item => item.activity);
 
-      const result = recommendProfessions(activitiesArray);
+      const recommendations = recommendProfessions(activitiesArray);
 
+      const result = {
+        firstname: userData.response[0].first_name,
+        lastname: userData.response[0].last_name,
+        recommendations: recommendations
+      }
       res.send(result)
     }
   } catch (error) {
