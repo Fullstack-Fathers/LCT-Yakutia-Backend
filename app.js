@@ -154,13 +154,53 @@ app.post('/social_networks/auth', async (req, res) => {
   }
 })
 
+app.get('/professions', authenticateToken, async (req, res) => {
+  const result = await client.query('SELECT * FROM professions');
+  res.send(result.rows)
+})
 
-app.get('/courses', async (req, res) => {
+app.get('/professions/:id', authenticateToken, async (req, res) => {
+  const courseId = req.params.id;
+  const result = await client.query('SELECT * FROM professions WHERE id = $1', [courseId]);
+  if (result.rows.length > 0) {
+    res.send(result.rows[0]);
+  } else {
+    res.status(404).send('Professions not found');
+  }})
+
+app.post('/profession', authenticateToken, async (req, res) => {
+  try {
+    const professionFind = await client.query('SELECT * FROM professions WHERE title = $1', [req.body.title]);
+
+    if (!professionFind.rows[0]) {
+      const insertQuery = {
+        text: 'INSERT INTO professions(title, description) VALUES($1, $2)',
+        values: [req.body.title, req.body.description],
+      };
+      await client.query(insertQuery);
+      const profession = await client.query('SELECT * FROM professions WHERE title = $1', [req.body.title]);
+    
+      return res.json(profession.rows[0]);
+  
+    } else {
+      return res.status(400).json({
+        error: 'Такая профессия уже существует',
+      });
+    }
+
+  } catch (err) {
+    res.status(500).json({
+      error: 'Не удалось создать курс',
+    });
+  }
+})
+
+app.get('/courses', authenticateToken, async (req, res) => {
   const result = await client.query('SELECT * FROM courses');
   res.send(result.rows)
 })
 
-app.get('/courses/:id', async (req, res) => {
+app.get('/courses/:id', authenticateToken, async (req, res) => {
   const courseId = req.params.id;
   const result = await client.query('SELECT * FROM courses WHERE id = $1', [courseId]);
   if (result.rows.length > 0) {
