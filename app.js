@@ -300,7 +300,9 @@ app.get('/user/:id', authenticateToken, async (req, res) => {
 app.get('/user_rec_profession/:id', authenticateToken, async (req, res) => {
   try {
     const userId = req.params.id;
-    const user_rec_prof = await client.query('SELECT * FROM prof_recommendations WHERE user_id = $1', [userId]);
+    const user_rec_prof = await client.query(
+      'SELECT * FROM prof_recommendations left join professions on professions.id = prof_recommendations.profession_id WHERE user_id = $1',
+      [userId]);
 
     if (!user_rec_prof.rows[0]) {
       return res.status(404).json({
