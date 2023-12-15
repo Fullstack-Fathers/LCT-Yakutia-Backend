@@ -169,6 +169,32 @@ app.get('/courses/:id', async (req, res) => {
     res.status(404).send('Course not found');
   }})
 
+app.post('/course', authenticateToken, async (req, res) => {
+  try {
+    const courseFind = await client.query('SELECT * FROM courses WHERE title = $1', [req.body.title]);
+
+    if (!courseFind.rows[0]) {
+      const insertQuery = {
+        text: 'INSERT INTO courses(title, description, image_url) VALUES($1, $2, $3)',
+        values: [req.body.title, req.body.description, req.body.image_url],
+      };
+      await client.query(insertQuery);
+      const course = await client.query('SELECT * FROM courses WHERE title = $1', [req.body.title]);
+    
+      return res.json(course.rows[0]);
+  
+    } else {
+      return res.status(400).json({
+        error: 'Такой курс уже существует',
+      });
+    }
+
+  } catch (err) {
+    res.status(500).json({
+      error: 'Не удалось создать курс',
+    });
+  }
+})
 
 app.post('/auth/login', async (req, res) => {
   try {
@@ -226,7 +252,68 @@ app.get('/user/:id', authenticateToken, async (req, res) => {
     return res.json(user.rows[0]);
   } catch (err) {
     res.status(500).json({
-      error: 'Не удалось авторизоваться',
+      error: 'Не удалось выполнить запрос',
+    });
+  }
+})
+
+app.get('/user_rec_profession/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user_rec_prof = await client.query('SELECT * FROM prof_recommendations WHERE user_id = $1', [userId]);
+
+    if (!user_rec_prof.rows[0]) {
+      return res.status(404).json({
+        error: 'У пользователя нет рекомендованных курсов',
+      });
+    }
+
+    return res.json(user_rec_prof.rows[0]);
+  } catch (err) {
+    res.status(500).json({
+      error: 'Не удалось выполнить запрос',
+    });
+  }
+})
+
+app.get('/courses_for_prof/:prof_id', authenticateToken, async (req, res) => {
+  try {
+    const profId = req.params.prof_id;
+    const prof_courses = await client.query(
+      'SELECT * FROM prof_courses left join courses on courses.id = prof_courses.course_id WHERE profession_id = $1', 
+    [profId]);
+
+    if (!prof_courses.rows[0]) {
+      return res.status(404).json({
+        error: 'У профессии нет курсов',
+      });
+    }
+
+    return res.json(prof_courses.rows[0]);
+  } catch (err) {
+    res.status(500).json({
+      error: 'Не удалось выполнить запрос',
+    });
+  }
+})
+
+app.get('/prof_for_courses_/:course_id', authenticateToken, async (req, res) => {
+  try {
+    const courseId = req.params.course_id;
+    const prof_courses = await client.query(
+      'SELECT * FROM prof_courses left join professions on professions.id = prof_courses.profession_id WHERE course_id = $1', 
+    [courseId]);
+
+    if (!prof_courses.rows[0]) {
+      return res.status(404).json({
+        error: 'У курса нет профессий',
+      });
+    }
+
+    return res.json(prof_courses.rows[0]);
+  } catch (err) {
+    res.status(500).json({
+      error: 'Не удалось выполнить запрос',
     });
   }
 })
