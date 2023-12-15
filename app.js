@@ -45,6 +45,17 @@ function recommendProfessions(userSubscriptions) {
   return sortedProfessions;
 }
 
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'] 
+  const token = authHeader && authHeader.split(' ')[1] 
+  if (!token) return res.sendStatus(401)
+  jwt.verify(token, 'secret123', (err, user) => {
+    console.log(err)
+    if (err) return res.sendStatus(403)
+    req.user = user
+    next()
+    })
+  }
 
 app.post('/social_networks/auth', async (req, res) => {
   try {
@@ -194,6 +205,25 @@ app.post('/auth/login', async (req, res) => {
       ...userData,
       token,
     });
+  } catch (err) {
+    res.status(500).json({
+      error: 'Не удалось авторизоваться',
+    });
+  }
+})
+
+app.get('/user/:id', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await client.query('SELECT * FROM users WHERE id = $1 limit 1', [userId]);
+
+    if (!user.rows[0]) {
+      return res.status(404).json({
+        error: 'Пользователь не найден',
+      });
+    }
+
+    return res.json(user.rows[0]);
   } catch (err) {
     res.status(500).json({
       error: 'Не удалось авторизоваться',
