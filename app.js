@@ -1,4 +1,7 @@
 const express = require('express')
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const axios = require('axios');
 require('dotenv').config();
 const professionProbabilities = require('./config/professions_vk')
@@ -19,6 +22,7 @@ const client = new Client({
 client.connect();
 
 app.use(express.json());
+app.use(cors());
 
 function recommendProfessions(userSubscriptions) {
   const professionScores = {};
@@ -153,6 +157,99 @@ app.get('/courses/:id', async (req, res) => {
   } else {
     res.status(404).send('Course not found');
   }})
+
+
+app.post('/auth/login', async (req, res) => {
+  try {
+    const emailReq = req.body.email;
+    const user = await client.query('SELECT * FROM users WHERE email = $1 limit 1', [emailReq]);
+
+    if (!user.rows[0]) {
+      return res.status(404).json({
+        error: 'Пользователь не найден',
+      });
+    }
+
+    const isValidPass = await bcrypt.compare(req.body.password, user.rows[0].password_hash);
+
+    if (!isValidPass) {
+      return res.status(400).json({
+        error: 'Неверный логин или пароль',
+      });
+    }
+
+    const token = jwt.sign(
+        {
+          _id: user.rows[0].id,
+        },
+        'secret123',
+        {
+          expiresIn: '30d',
+        },
+    );
+
+    const {passwordHash, ...userData} = user.rows[0];
+
+    res.json({
+      ...userData,
+      token,
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: 'Не удалось авторизоваться',
+    });
+  }
+})
+
+app.post('/auth/register', async (req, res) => {
+  try {
+    const password = req.body.password;
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(password, salt);
+    
+    const userFind = await client.query('SELECT * FROM users WHERE email = $1 limit 1', [req.body.email]);
+
+    if (!userFind.rows[0]) {
+      const insertQuery = {
+        text: 'INSERT INTO users(firstname, lastname, email, password_hash, role) VALUES($1, $2, $3, $4, $5)',
+        values: [req.body.firstname, req.body.lastname, req.body.email, hash, req.body.role],
+      };
+      await client.query(insertQuery);
+  
+      const emailReq = req.body.email;
+      const user = await client.query('SELECT * FROM users WHERE email = $1', [req.body.email]);
+  
+      const token = jwt.sign(
+          {
+            _id: user.rows[0].id,
+          },
+          'secret123',
+          {
+            expiresIn: '30d',
+          },
+      );
+  
+      const {passwordHash, ...userData} = user.rows[0];
+  
+      res.json({
+        ...userData,
+        token,
+      });
+  
+    } else {
+      return res.status(400).json({
+        error: 'Пользователь с такой почтой уже существует',
+      });
+    }
+
+  } catch (err) {
+    res.status(500).json({
+      error: 'Не удалось зарегистрироваться',
+    });
+  }
+})
+
+
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Example app listening on port ${port}`)
